@@ -1,5 +1,5 @@
 const { ChatOpenAI, OpenAIEmbeddings } = require("@langchain/openai");
-const { ChatPromptTemplate} = require("@langchain/core/prompts");
+const { ChatPromptTemplate } = require("@langchain/core/prompts");
 const { PDFLoader } = require("@langchain/community/document_loaders/fs/pdf");
 const { StringOutputParser } = require("@langchain/core/output_parsers")
 const { CharacterTextSplitter } = require("langchain/text_splitter");
@@ -8,10 +8,14 @@ const { createRetrievalChain } = require("langchain/chains/retrieval");
 const { Client } = require("@elastic/elasticsearch");
 const { ElasticVectorSearch } = require("@langchain/community/vectorstores/elasticsearch");
 const config = require("../elasticDB/config");
+const fs = require('fs').promises;
+const path = require('path');
 const dotenv = require("dotenv");
 dotenv.config();
+const rootPath = __dirname.split(/[/\\]/).slice(0, -1).join('/');
+const uploadPath = `${rootPath}/Uploads`
 
-const chatController = async(req, res) => {
+const chatController = async (req, res) => {
     const query = req.body;
     //MODEL
     const model = new ChatOpenAI({
@@ -26,26 +30,11 @@ const chatController = async(req, res) => {
         Context: {context}
         Question: {input}
     `)
+    //Fetch the file paths
+    const loaders = await getFilePath(uploadPath);
 
     //LOAD
     const pages = [];
-    const path = __dirname.split(/[/\\]/).slice(0, -1).join('/');
-    const loaders = [
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_1.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_2.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_3.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_4.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_5.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_6.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_7.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_8.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_9.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_10.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_11.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_12.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_13.pdf`),
-        new PDFLoader(`${path}/Data/Dog_Breed_Characteristics_Behavior_14.pdf`)
-    ];
     const splitter = new CharacterTextSplitter({
         separator: "\n",
         chunkSize: 2000,
@@ -56,24 +45,7 @@ const chatController = async(req, res) => {
         const doc = await loader.load();
         pages.push(doc[0]);
     }
-    /*
-    pages
-    [
-        Document {
-            pageContent: ,
-            metadata: {
-            },
-            id:
-        },
-        Document {
-            pageContent: ,
-            metadata: {
-            },
-            id:
-        }
-    ]
-    */
-    console.log(pages.length);
+    console.log("Number of documents",pages.length);
 
     //SPLIT
     const splitDocs = await splitter.splitDocuments(pages);
@@ -89,10 +61,7 @@ const chatController = async(req, res) => {
     const vectorStore = new ElasticVectorSearch(embeddings, clientArgs);
     const ids = await vectorStore.addDocuments(splitDocs);
     console.log(ids);
-    /* Test similarity
-    const results = await vectorStore.similaritySearch("PROTECTION DOGS", 1);
-    console.log(JSON.stringify(results, null, 2));
-    */
+    
     const retriever = vectorStore.asRetriever({
         k: 2
     })
@@ -111,6 +80,18 @@ const chatController = async(req, res) => {
     console.log(response.answer);
     await vectorStore.delete({ ids });
     res.send(response.answer)
+}
+
+const getFilePath = async(uploadPath) => {
+    try {
+        const files = await fs.readdir(uploadPath);
+        const filePaths = files
+            .map(file => path.join(uploadPath, file));
+        const loaders = filePaths.map(filePath => new PDFLoader(filePath));
+        return loaders;
+    } catch (error) {
+        return console.error("Error reading directory", error);
+    }
 }
 
 module.exports = {
