@@ -1,5 +1,7 @@
 import axios from "axios";
 import FormData from "form-data";
+import * as dotenv from "dotenv";
+dotenv.config();
 
 export const uploadPDF = async (selectedFile) => {
     if (selectedFile) {
@@ -8,7 +10,7 @@ export const uploadPDF = async (selectedFile) => {
         try {
             const response = await axios({
                 method: "post",
-                url: "http://localhost:3000/upload",
+                url: process.env.UPLOAD_API,
                 data: form,
                 headers: {
                     'Content-Type': 'multipart/form-data'

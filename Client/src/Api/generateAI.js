@@ -1,4 +1,6 @@
 import axios from "axios";
+import * as dotenv from "dotenv";
+dotenv.config();
 
 export const generateAIApi = async(currentMessage) => {
     const body = {
@@ -7,7 +9,7 @@ export const generateAIApi = async(currentMessage) => {
     try {
         const response = await axios({
             method: "post",
-            url: "http://localhost:3000/query",
+            url: process.env.GENERATE_AI_API,
             data: body
         });
         return response;
